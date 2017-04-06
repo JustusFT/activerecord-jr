@@ -1,6 +1,7 @@
 GEM
   remote: http://rubygems.org/
   specs:
+    byebug (9.0.6)
     faker (1.6.3)
       i18n (~> 0.5)
     i18n (0.7.0)
@@ -10,8 +11,9 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  byebug
   faker
   sqlite3
 
 BUNDLED WITH
-   1.11.2
+   1.14.6
