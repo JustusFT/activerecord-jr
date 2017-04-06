@@ -6,7 +6,7 @@ module Database
 
   class Model
     attr_reader :attributes, :old_attributes
-    
+
     def initialize(attributes = {})
       attributes.symbolize_keys!
 
@@ -15,11 +15,42 @@ module Database
       # This defines the value even if it's not present in attributes
       @attributes = {}
 
-      Student.attribute_names.each do |name|
+      self.class.attribute_names.each do |name|
         @attributes[name] = attributes[name]
       end
 
       @old_attributes = @attributes.dup
+    end
+
+    def new_record?
+      self[:id].nil?
+    end
+
+    def self.table_name
+      self.name.gsub(/([A-Z])/, '_\1')[1..-1].downcase + "s"
+    end
+
+    def self.all
+      Database::Model.execute("SELECT * FROM #{table_name}").map do |row|
+        self.new(row)
+      end
+    end
+
+    def self.create(attributes)
+      record = self.new(attributes)
+      record.save
+
+      record
+    end
+
+    def self.where(query, *args)
+      Database::Model.execute("SELECT * FROM #{table_name} WHERE #{query}", *args).map do |row|
+        self.new(row)
+      end
+    end
+
+    def self.find(pk)
+      self.where('id = ?', pk).first
     end
 
     def save
@@ -130,6 +161,36 @@ module Database
       else
         value
       end
+    end
+
+    def insert!
+      self[:created_at] = DateTime.now
+      self[:updated_at] = DateTime.now
+
+      fields = self.attributes.keys
+      values = self.attributes.values
+      marks  = Array.new(fields.length) { '?' }.join(',')
+
+      insert_sql = "INSERT INTO #{self.class.table_name} (#{fields.join(',')}) VALUES (#{marks})"
+
+      results = Database::Model.execute(insert_sql, *values)
+
+      # This fetches the new primary key and updates this instance
+      self[:id] = Database::Model.last_insert_row_id
+      results
+    end
+
+    def update!
+      self[:updated_at] = DateTime.now
+
+      fields = self.attributes.keys
+      values = self.attributes.values
+
+      update_clause = fields.map { |field| "#{field} = ?" }.join(',')
+      update_sql = "UPDATE #{self.class.table_name} SET #{update_clause} WHERE id = ?"
+
+      # We have to use the (potentially) old ID attribute in case the user has re-set it.
+      Database::Model.execute(update_sql, *values, self.old_attributes[:id])
     end
   end
 end
